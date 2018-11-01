@@ -1,0 +1,61 @@
+##################################################
+### Pre-checks
+- name: Check system for local IP addresses
+  shell: hostname --ip-address
+  register: hostname_ipaddress
+
+- debug:
+    var: hostname_ipaddress.stdout
+
+##################################################
+### Install Proxmox
+- name: Remove second loopback address
+  lineinfile:
+    path: /etc/hosts
+    state: absent
+    regexp: '^127.0.1.1'
+
+- name: Add apt key for Debian
+  apt_key: 
+    url: "{{ proxmox_repo_gpg }}"
+    state: present
+
+- name: Add repository for Proxmox
+  apt_repository: 
+    repo: "deb {{ proxmox_repo_url }} {{ ansible_distribution_release }} pve-no-subscription"
+    state: present
+    update_cache: yes
+
+- name: Remove packages which can cause conflicts with Proxmox
+  apt:
+    name: "{{ item }}"
+    state: absent
+  with_items:
+    - os-prober
+
+- name: Install proxmox
+  apt:
+    name: "{{ item }}"
+    state: latest
+  with_items:
+    - proxmox-ve
+    - postfix
+    - open-iscsi
+
+- name: Remove repository for Proxmox Enterprise
+  file:
+    path: /etc/apt/sources.list.d/pve-enterprise.list
+    state: absent
+
+- name: Allow Port 8006
+  ufw: rule=allow port=8006
+
+- name: Set root password to vagrant
+  user:
+    name: root
+    password: "$6$hYpaZWqm$LvNkJWVh4LKecv892kAf4eKA3reLefvnovLyl3BRif5h3LF8TBZJdSUKO2vkzcd39lQtzjTHMV.6dVFQy.VE//"
+
+##################################################
+### Finished
+- name: Proxmox is ready to use
+  debug: msg="URL=https://proxmox.test:8006 // User=root // Password=vagrant"
